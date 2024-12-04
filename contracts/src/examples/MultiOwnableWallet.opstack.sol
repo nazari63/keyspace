@@ -11,6 +11,7 @@ import {OPStackKeystore} from "../chains/OPStackKeystore.sol";
 import {Keystore} from "../Keystore.sol";
 import {ConfigLib} from "../KeystoreLibs.sol";
 
+import {ERC1271} from "./ERC1271.sol";
 import {TransientUUPSUpgradeable} from "./TransientUUPSUpgradeable.sol";
 
 // **Eventual Consistency Strategy**
@@ -59,7 +60,7 @@ struct WalletStorage {
     mapping(bytes32 configHash => KeystoreConfig) keystoreConfig;
 }
 
-contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiver, IAccount {
+contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeable, Receiver, IAccount {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                           CONSTANTS                                            //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +202,7 @@ contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiv
     }
 
     /// @inheritdoc Keystore
-    function hookIsNewConfigValid(ConfigLib.Config calldata newConfig, bytes calldata authorizationProof)
+    function hookIsNewConfigValid(ConfigLib.Config calldata newConfig, bytes calldata validationProof)
         public
         view
         override
@@ -210,25 +211,41 @@ contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiv
         // NOTE: Because this hook is limited to a view function, no special access control logic is required.
 
         bytes32 newConfigHash = ConfigLib.hash(newConfig);
-        (, bytes memory sigUpdate, uint256 sigUpdateSignerIndex) =
-            abi.decode(authorizationProof, (bytes, bytes, uint256));
+        (, bytes memory signatureUpdate) = abi.decode(validationProof, (bytes, bytes));
+        (uint256 sigUpdateSignerIndex, bytes memory signature) = abi.decode(signatureUpdate, (uint256, bytes));
 
         // Perform a safeguard check to make sure the update is valid.
-        address[] memory signers = abi.decode(newConfig.data, (address[]));
+        (, address[] memory signers) = abi.decode(newConfig.data, (address, address[]));
         address sigUpdateSigner = signers[sigUpdateSignerIndex];
 
         return SignatureCheckerLib.isValidSignatureNow({
             signer: sigUpdateSigner,
             hash: newConfigHash,
-            signature: sigUpdate
+            signature: signature
         });
-
-        // require(InvalidKeystoreConfigUpdate());
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                       INTERNAL FUNCTIONS                                       //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// @inheritdoc ERC1271
+    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
+        return ("MultiOwnableWallet", "1");
+    }
+
+    /// @inheritdoc ERC1271
+    function _isValidSignature(bytes32 hash, bytes memory signature) internal view override returns (bool) {
+        (address signer, bytes memory signature_) = abi.decode(signature, (address, bytes));
+
+        // Ensure the signer is registered in the current Keystore config.
+        if (!_isOwner(signer)) {
+            return false;
+        }
+
+        // Check if the signature is valid.
+        return SignatureCheckerLib.isValidSignatureNow({signer: signer, hash: hash, signature: signature_});
+    }
 
     /// @inheritdoc Keystore
     function _eventualConsistencyWindow() internal pure override returns (uint256) {
@@ -243,15 +260,16 @@ contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiv
         returns (bool)
     {
         bytes32 newConfigHash = ConfigLib.hash(newConfig);
-        (bytes memory sigAuth,,) = abi.decode(authorizationProof, (bytes, bytes, uint256));
+        (bytes memory signatureAuth,) = abi.decode(authorizationProof, (bytes, bytes));
 
         // Ensure the update is authorized.
-        return _isValidSignature({hash: newConfigHash, signature: sigAuth});
+        return _isValidSignature({hash: newConfigHash, signature: signatureAuth});
     }
 
     /// @inheritdoc Keystore
     function _hookApplyNewConfig(ConfigLib.Config calldata newConfig) internal override returns (bool) {
-        (address implementation, bytes memory data) = abi.decode(newConfig.data, (address, bytes));
+        // NOTE: Only decode the implementation as we don't know if an uprade will be performed or not yet.
+        address implementation = abi.decode(newConfig.data, (address));
 
         // Read the current implementation and if it changed perform the upgrade.
         address currentImpl;
@@ -263,12 +281,13 @@ contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiv
             _allowUpgrade();
 
             // NOTE: Must be a public call as `upgradeToAndCall` accepts a `bytes calldata data`.
+            (, bytes memory data) = abi.decode(newConfig.data, (address, bytes));
             this.upgradeToAndCall({newImplementation: implementation, data: data});
             return true;
         }
 
         // Otherwise set the new signers.
-        address[] memory signers = abi.decode(data, (address[]));
+        (, address[] memory signers) = abi.decode(newConfig.data, (address, address[]));
         bytes32 configHash = ConfigLib.hash(newConfig);
         mapping(address signer => bool isSigner) storage signers_ = _sWallet().keystoreConfig[configHash].signers;
         for (uint256 i; i < signers.length; i++) {
@@ -312,24 +331,6 @@ contract MultiOwnableWallet is OPStackKeystore, TransientUUPSUpgradeable, Receiv
     /// @return `true` if the call is a `setConfig()` call, otherwise `false`.
     function _isSetConfigCall(address target, uint256 value, bytes memory data) private view returns (bool) {
         return target == address(this) && bytes4(data) == this.setConfig.selector && value == 0;
-    }
-
-    /// @notice Validates the `signature` against the given `hash`.
-    ///
-    /// @param hash The hash on which the signature was performed.
-    /// @param signature The signature associated with `hash`.
-    ///
-    /// @return True if the signature is valid, else false.
-    function _isValidSignature(bytes32 hash, bytes memory signature) private view returns (bool) {
-        (address signer, bytes memory signature_) = abi.decode(signature, (address, bytes));
-
-        // Ensure the signer is registered in the current Keystore config.
-        if (!_isOwner(signer)) {
-            return false;
-        }
-
-        // Check if the signature is valid.
-        return SignatureCheckerLib.isValidSignatureNow({signer: signer, hash: hash, signature: signature_});
     }
 
     /// @notice Enforces safe eventual consistency.
