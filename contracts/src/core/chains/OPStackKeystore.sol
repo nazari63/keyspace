@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {Keystore} from "../Keystore.sol";
 import {BlockLib, L1StateRootLib, StorageProofLib, UnsafeKeystoreStorageLib} from "../KeystoreLibs.sol";
@@ -9,7 +9,7 @@ abstract contract OPStackKeystore is Keystore {
     //                                           CONSTANTS                                            //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// @notice The AnchorStateRegistry contract address on L1 used to prove L2 state roots.
+    /// @notice The `AnchorStateRegistry` contract address on L1 used to prove L2 state roots.
     address constant ANCHOR_STATE_REGISTRY_ADDR = 0x4C8BA32A5DAC2A720bb35CeDB51D6B067D104205;
 
     /// @notice The slot where the OutputRoot is stored in the `AnchorStateRegistry` L1 contract.

@@ -5,7 +5,7 @@
  * - https://github.com/lidofinance/curve-merkle-oracle/blob/1033b3e/contracts/MerklePatriciaProofVerifier.sol
  * - https://github.com/lorenzb/proveth/blob/c74b20e/onchain/ProvethVerifier.sol
  */
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {RLPReader} from "Solidity-RLP/RLPReader.sol";
 

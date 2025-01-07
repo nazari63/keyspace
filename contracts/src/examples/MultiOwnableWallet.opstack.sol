@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {IAccount} from "aa/interfaces/IAccount.sol";
 import {UserOperation} from "aa/interfaces/UserOperation.sol";
@@ -12,36 +12,6 @@ import {OPStackKeystore} from "../core/chains/OPStackKeystore.sol";
 
 import {ERC1271} from "./ERC1271.sol";
 import {TransientUUPSUpgradeable} from "./TransientUUPSUpgradeable.sol";
-
-// **Eventual Consistency Strategy**
-//
-// Our approach enforces eventual consistency (EC) at execution time rather than validation time. Furthermore, by not
-// enforcing EC for config management, we achieve a balance between security and usability. Here's the breakdown:
-//
-// 1. Config management (No EC Required):
-//    - `confirmConfig` and `setConfig` operations do not require EC.
-//    -  Because wallet upgrades are performed when the config is changed (if needed), this allows users to upgrade
-//       their wallet to the latest version by replaying their precofirmations. This way, the wallet is protected from
-//       bricking in cases where proving the Keystore config from the master chain becomes unavailable (due to chain or
-//       protocol changes).
-//
-// 2. Removing EC at validation time:
-//    - Eliminating EC enforcement at validation time simplifies UserOp handling, especially in scenarios where an
-//      `executeBatch` contains both EC-requiring and non-EC calls.
-//    - Validation time EC enforcement led to complex workarounds, and moving it at execution time is a gain in
-//      flexibility and usability.
-//
-// 3. EC enforcement at execution time:
-//    - While `confirmConfig and `setConfig` bypass EC checks, EC is enforced for regular calls at execution time.
-//
-// 4. Security considerations:
-//    - Execution time EC remains secure as the UserOp is signed by a trusted wallet signer. However, a revoked but
-//      non-preconfirmed signer could potentially steal the user's funds by upgrading to a custom implementation. We
-//      believe this tradeoff is worthwhile compared to the alternative risk of bricking all user wallets due to chain
-//      or protocol changes.
-//
-// This design enforces EC where needed, prevents wallet bricking, and minimizes unnecessary EC checks. It strikes a
-// balance between wallet integrity crosschain and improved usability.
 
 /// @dev The Keystore config for this wallet.
 struct KeystoreConfig {
@@ -72,9 +42,6 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
     /// @dev Computed as specified in ERC-7201 (see https://eips.ethereum.org/EIPS/eip-7201):
     ///      keccak256(abi.encode(uint256(keccak256("storage.MultiOwnableWallet")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 constant WALLET_STORAGE_LOCATION = 0xa77adb1dc9bb40c655d8d6905390b0bccb8c0d39c0692125ebfde9aed74bd500;
-
-    /// @notice The wallet eventual consistency window for the Keystore config.
-    uint256 constant EVENTUAL_CONSISTENCY_WINDOW = 7 days;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                              ERRORS                                            //
@@ -247,11 +214,6 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
     }
 
     /// @inheritdoc Keystore
-    function _eventualConsistencyWindow() internal pure override returns (uint256) {
-        return EVENTUAL_CONSISTENCY_WINDOW;
-    }
-
-    /// @inheritdoc Keystore
     function _hookIsNewConfigAuthorized(ConfigLib.Config calldata newConfig, bytes calldata authorizationProof)
         internal
         view
@@ -332,35 +294,6 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
         return target == address(this) && bytes4(data) == this.setConfig.selector && value == 0;
     }
 
-    /// @notice Enforces safe eventual consistency.
-    ///
-    /// @dev "Safe" eventual consistency involves enforcing EC for all actions that are not related to Keystore
-    ///      config management or wallet implementation upgrades. See "Eventual Consistency (EC) Strategy" notes.
-    ///
-    /// @param target The target address.
-    /// @param data The raw call data.
-    function _enforceSafeEventualConsistency(address target, bytes memory data) private view {
-        // NOTE: Early return on replica chains when eventual consistency should be skipped.
-        if (_shouldSkipEventualConsistency({target: target, data: data})) {
-            return;
-        }
-
-        // Falls back to the Keystore eventual consistency implementation.
-        _enforceEventualConsistency();
-    }
-
-    /// @notice Check if eventual consistensy should be skipped when perfoming the provided call.
-    ///
-    /// @param target The target address.
-    /// @param data The raw call data.
-    ///
-    /// @return True if eventual consistency should be skipped for the call, otherwise false.
-    function _shouldSkipEventualConsistency(address target, bytes memory data) private view returns (bool) {
-        bytes4 selector = bytes4(data);
-        return target == address(this)
-            && (selector == Keystore.confirmConfig.selector || selector == Keystore.setConfig.selector);
-    }
-
     /// @notice Executes all the prepended `setConfig()` calls of an `executeBatch()` call until the first
     ///         non-`setConfig()` call.
     ///
@@ -387,7 +320,6 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
 
     /// @notice Executes the given call from this account.
     ///
-    /// @dev Reverts if the eventual consistency check fails.
     /// @dev Reverts if the call reverted.
     /// @dev Implementation taken from
     ///      https://github.com/alchemyplatform/light-account/blob/43f625afdda544d5e5af9c370c9f4be0943e4e90/src/common/BaseLightAccount.sol#L125
@@ -396,8 +328,6 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
     /// @param value The call value to user.
     /// @param data The raw call data.
     function _call(address target, uint256 value, bytes memory data) internal {
-        _enforceSafeEventualConsistency({target: target, data: data});
-
         (bool success, bytes memory result) = target.call{value: value}(data);
         if (!success) {
             assembly ("memory-safe") {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {Keystore} from "../../core/Keystore.sol";
 import {ConfigLib} from "../../core/KeystoreLibs.sol";

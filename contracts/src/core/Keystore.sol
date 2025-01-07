@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {ConfigLib, UnsafeKeystoreStorageLib} from "./KeystoreLibs.sol";
 
@@ -41,10 +41,6 @@ abstract contract Keystore {
 
     /// @notice Thrown when the new Keystore config is invalid.
     error InvalidNewKeystoreConfig();
-
-    /// @notice Thrown when confirming the Keystore config on replica chains is required to achieve eventual
-    ///         consistency.
-    error ConfirmedConfigTooOld();
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                              EVENTS                                            //
@@ -206,12 +202,6 @@ abstract contract Keystore {
     //                                       INTERNAL FUNCTIONS                                       //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the the eventual consistency window within which the Keystore config must be confirmed on
-    ///         replica chains.
-    ///
-    /// @return The duration of the eventual consistency window in seconds.
-    function _eventualConsistencyWindow() internal view virtual returns (uint256);
-
     /// @notice Extracts the Keystore config hash and timestamp from the master chain.
     ///
     /// @param keystoreProof The proof data used to extract the Keystore config hash on the master chain.
@@ -260,22 +250,6 @@ abstract contract Keystore {
 
         uint256 preconfirmedCount = UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes.length;
         return UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes[preconfirmedCount - 1];
-    }
-
-    /// @notice Enforces eventual consistency by ensuring the confirmed Keystore configuration is recent enough.
-    ///
-    /// @dev On the master chain, this function always passes without additional checks.
-    /// @dev On replica chains, the function reverts if the timestamp of the confirmed Keystore configuration
-    ///      is older than the allowable eventual consistency window.
-    function _enforceEventualConsistency() internal view {
-        // Early return on the master chain.
-        if (block.chainid == masterChainId) {
-            return;
-        }
-
-        // On replica chains, enforce eventual consistency.
-        uint256 validUntil = UnsafeKeystoreStorageLib.sReplica().masterBlockTimestamp + _eventualConsistencyWindow();
-        require(block.timestamp <= validUntil, ConfirmedConfigTooOld());
     }
 
     /// @notice Initializes the Keystore.

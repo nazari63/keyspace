@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {EIP4788Lib} from "./EIP4788Lib.sol";
 import {L1BlockLib} from "./L1BlockLib.sol";
@@ -9,8 +9,7 @@ library L1StateRootLib {
     //                                              ERRORS                                            //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// @notice Thrown when an unsupported L1 state root proofproof type is provided in an L1 state root
-    /// proof.
+    /// @notice Thrown when an unsupported proof type is provided to verify an L1 state root.
     ///
     /// @param proofType The invalid proof type that caused the error.
     error InvalidProofType(uint8 proofType);

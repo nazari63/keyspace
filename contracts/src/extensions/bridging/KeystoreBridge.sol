@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {KeystoreArbitrumPortal} from "./portals/KeystoreArbitrumPortal.sol";
 import {KeystoreBasePortal} from "./portals/KeystoreBasePortal.sol";
