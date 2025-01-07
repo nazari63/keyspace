@@ -6,28 +6,12 @@ import {UserOperation} from "aa/interfaces/UserOperation.sol";
 import {Receiver} from "solady/accounts/Receiver.sol";
 import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 
-import {Keystore} from "../core/Keystore.sol";
-import {ConfigLib} from "../core/KeystoreLibs.sol";
-import {OPStackKeystore} from "../core/chains/OPStackKeystore.sol";
+import {Keystore} from "../../core/Keystore.sol";
+import {ConfigLib} from "../../core/KeystoreLibs.sol";
+import {OPStackKeystore} from "../../core/chains/OPStackKeystore.sol";
 
-import {ERC1271} from "./ERC1271.sol";
-import {TransientUUPSUpgradeable} from "./TransientUUPSUpgradeable.sol";
-
-/// @dev The Keystore config for this wallet.
-struct KeystoreConfig {
-    /// @dev The wallet signers.
-    mapping(address signer => bool isSigner) signers;
-}
-
-/// @dev Storage layout used to store the Wallet data.
-///
-/// @custom:storage-location erc7201:storage.MultiOwnableWallet
-struct WalletStorage {
-    /// @dev The mapping of Keystore configs.
-    ///      NOTE: Using a mapping allows to set a new entry for each new Keystore config and thus avoid the need to
-    ///            to have to properly delete all the previous config.
-    mapping(bytes32 configHash => KeystoreConfig) keystoreConfig;
-}
+import {ERC1271} from "../utils/ERC1271.sol";
+import {TransientUUPSUpgradeable} from "../utils/TransientUUPSUpgradeable.sol";
 
 contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeable, Receiver, IAccount {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +37,22 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                            STRUCTURES                                          //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// @dev Storage layout used to store the Wallet data.
+    ///
+    /// @custom:storage-location erc7201:storage.MultiOwnableWallet
+    struct WalletStorage {
+        /// @dev The mapping of Keystore configs.
+        ///      NOTE: Using a mapping allows to set a new entry for each new Keystore config and thus avoid the need to
+        ///            to have to properly delete all the previous config.
+        mapping(bytes32 configHash => KeystoreConfig) keystoreConfig;
+    }
+
+    /// @dev The Keystore config for this wallet.
+    struct KeystoreConfig {
+        /// @dev The wallet signers.
+        mapping(address signer => bool isSigner) signers;
+    }
 
     /// @notice Represents a call to make.
     struct Call {
@@ -155,11 +155,11 @@ contract MultiOwnableWallet is OPStackKeystore, ERC1271, TransientUUPSUpgradeabl
     function executeBatch(Call[] calldata calls) external payable virtual onlyEntryPointOrOwner {
         // Skip the prepended `setConfig()` calls that have already been executed at validation time.
         uint256 i;
-        for (i; i < calls.length; i++) {
-            if (!_isSetConfigCall({target: calls[i].target, value: calls[i].value, data: calls[i].data})) {
-                break;
-            }
-        }
+        for (
+            i;
+            i < calls.length && _isSetConfigCall({target: calls[i].target, value: calls[i].value, data: calls[i].data});
+            i++
+        ) {}
 
         // Execute the remaining calls.
         for (i; i < calls.length; i++) {

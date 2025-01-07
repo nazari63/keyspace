@@ -3,9 +3,9 @@ pragma solidity ^0.8.28;
 
 import {LibClone} from "solady/utils/LibClone.sol";
 
-import {ConfigLib} from "../core/KeystoreLibs.sol";
+import {ConfigLib} from "../../core/KeystoreLibs.sol";
 
-import {MultiOwnableWallet} from "./MultiOwnableWallet.opstack.sol";
+import {MultiOwnableWallet} from "./MultiOwnableWallet.sol";
 
 contract MultiOwnableWalletFactory {
     ////////////////////////////////////////////////////////////////////////////////////////////////////

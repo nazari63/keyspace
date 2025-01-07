@@ -8,8 +8,8 @@ import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 import {Keystore} from "../src/core/Keystore.sol";
 import {ConfigLib} from "../src/core/KeystoreLibs.sol";
 
-import {MultiOwnableWallet} from "../src/examples/MultiOwnableWallet.opstack.sol";
-import {MultiOwnableWalletFactory} from "../src/examples/MultiOwnableWalletFactory.opstack.sol";
+import {MultiOwnableWallet} from "../src/examples/op-stack/MultiOwnableWallet.sol";
+import {MultiOwnableWalletFactory} from "../src/examples/op-stack/MultiOwnableWalletFactory.sol";
 
 interface IMulticall3 {
     struct Call3 {
