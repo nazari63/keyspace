@@ -21,7 +21,7 @@ abstract contract KeystoreBridgeableExt is Keystore {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /// @notice Thrown when the confirmed Keystore config Merkle proof verification fails against the `KeystoreBridge`
-    ///         received Keystore state root.
+    ///         received root.
     error InvalidKeystoreConfigMerkleProof();
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -51,16 +51,16 @@ abstract contract KeystoreBridgeableExt is Keystore {
         uint256 index,
         bytes32[] calldata siblings
     ) external {
-        // Retrieve the received Keystore state root from the bridge.
-        bytes32 receivedStateRoot = KeystoreBridge(keystoreBridge).receivedTreeRoots(masterChainId);
+        // Retrieve the received root from the bridge.
+        bytes32 receivedRoot = KeystoreBridge(keystoreBridge).receivedRoot(masterChainId);
 
-        // Recompute the data hash that was committed in the Keystore state root.
+        // Recompute the data hash that was committed in the root.
         bytes32 newConfirmedConfigHash = ConfigLib.hash({config: masterConfig, account: address(this)});
 
         // Ensure the provided `masterConfig` and `newMasterBlockTimestamp` are valid for this Keystore contract.
         require(
             BinaryMerkleTreeLib.isValid({
-                root: receivedStateRoot,
+                root_: receivedRoot,
                 // NOTE: Ensure that the `dataHash` commits to `address(this)`, proving that `newConfirmedConfigHash`
                 //       was effectively fetched from this contract on the master chain.
                 dataHash: keccak256(abi.encodePacked(address(this), newConfirmedConfigHash, newMasterBlockTimestamp)),

@@ -6,6 +6,8 @@ import {IInbox} from "arbitrum-nitro-contracts/bridge/IInbox.sol";
 import {IOutbox} from "arbitrum-nitro-contracts/bridge/IOutbox.sol";
 import {ArbSys} from "arbitrum-nitro-contracts/precompiles/ArbSys.sol";
 
+import {KeystoreBridgeStorageLib} from "../state/KeystoreBridgeStorageLib.sol";
+
 import {L2ToL1MsgSenderIsNotThisContract, L2ToL1TxSenderIsNotRollupContract} from "./PortalErrors.sol";
 import {ReceiverAliasedAddress} from "./ReceiverAliasedAddress.sol";
 
@@ -24,19 +26,20 @@ contract KeystoreArbitrumPortal is ReceiverAliasedAddress {
     //                                        PUBLIC FUNCTIONS                                        //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// @notice Sends the Keystore tree root to Arbitrum.
+    /// @notice Sends the root to Arbitrum.
     ///
-    /// @param chainid The chain id key to look up the Keystore tree root to send. If `chainid` is 0, the local Keystore
-    ///                tree root is sent.
+    /// @param chainid The chain id key to look up the root to send. If `chainid` is 0, the local root is sent.
     /// @param maxSubmissionCost The maximum cost of submitting the retryable ticket.
     /// @param gasLimit The gas limit for the retryable ticket on L2.
     /// @param maxFeePerGas The maximum fee per gas for the retryable ticket.
     function sendToArbitrum(uint256 chainid, uint256 maxSubmissionCost, uint256 gasLimit, uint256 maxFeePerGas)
         external
     {
-        (uint256 originChainid, bytes32 treeRoot) =
-            chainid == 0 ? (block.chainid, localTreeRoot()) : (chainid, receivedTreeRoots[chainid]);
+        (uint256 originChainid, bytes32 root) = chainid == 0
+            ? (block.chainid, KeystoreBridgeStorageLib.localRoot())
+            : (chainid, KeystoreBridgeStorageLib.receivedRoot(chainid));
 
+        // TODO: Make it work with Arbitrum L3s.
         IInbox(ARBITRUM_INBOX).createRetryableTicket({
             to: address(this),
             l2CallValue: 0,
@@ -45,28 +48,30 @@ contract KeystoreArbitrumPortal is ReceiverAliasedAddress {
             callValueRefundAddress: msg.sender,
             gasLimit: gasLimit,
             maxFeePerGas: maxFeePerGas,
-            data: abi.encodeCall(ReceiverAliasedAddress.receiveFromAliasedAddress, (originChainid, treeRoot))
+            data: abi.encodeCall(ReceiverAliasedAddress.receiveFromAliasedAddress, (originChainid, root))
         });
     }
 
-    /// @notice Sends the local Keystore tree root back to L1.
+    /// @notice Sends the local root back to L1.
     ///
     /// @dev Only withdrawals from Arbitrum (and not its L3s) are supported as the targeted `receiveOnL1FromArbitrum`
     ///      method only works on L1.
-    /// @dev This method does not accept a `chainid` as "withdrawals" to L1 should only ever use the local Keystore tree
-    ///      root (and not a received one).
+    /// @dev This method does not accept a `chainid` as "withdrawals" to L1 should only ever use the local root (and not
+    ///      a received one).
     function sendFromArbitrumToL1() external {
         ArbSys(ARBSYS).sendTxToL1({
             destination: address(this),
-            data: abi.encodeCall(KeystoreArbitrumPortal.receiveOnL1FromArbitrum, (block.chainid, localTreeRoot()))
+            data: abi.encodeCall(
+                KeystoreArbitrumPortal.receiveOnL1FromArbitrum, (block.chainid, KeystoreBridgeStorageLib.localRoot())
+            )
         });
     }
 
-    /// @notice Receives a Keystore tree root sent from Arbitrum.
+    /// @notice Receives a root sent from Arbitrum.
     ///
     /// @param originChainid The origin chain id.
-    /// @param treeRoot The Keystore tree root being received.
-    function receiveOnL1FromArbitrum(uint256 originChainid, bytes32 treeRoot) external {
+    /// @param root The root being received.
+    function receiveOnL1FromArbitrum(uint256 originChainid, bytes32 root) external {
         // Ensure the tx sender is the Arbitrum Bridge contract.
         IBridge bridge = IInbox(ARBITRUM_INBOX).bridge();
         require(msg.sender == address(bridge), L2ToL1TxSenderIsNotRollupContract());
@@ -75,7 +80,7 @@ contract KeystoreArbitrumPortal is ReceiverAliasedAddress {
         IOutbox outbox = IOutbox(bridge.activeOutbox());
         require(outbox.l2ToL1Sender() == address(this), L2ToL1MsgSenderIsNotThisContract());
 
-        // Register the Keystore tree root.
-        receivedTreeRoots[originChainid] = treeRoot;
+        // Register the root.
+        KeystoreBridgeStorageLib.sKeystoreBridge().receivedRoots[originChainid] = root;
     }
 }

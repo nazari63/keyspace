@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {ConfigLib, UnsafeKeystoreStorageLib} from "./KeystoreLibs.sol";
+import {ConfigLib, KeystoreStorageLib} from "./KeystoreLibs.sol";
 
 abstract contract Keystore {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,11 +88,8 @@ abstract contract Keystore {
     /// @return masterBlockTimestamp The timestamp of the master block associated with the confirmed config hash.
     function confirmedConfigHash() public view returns (bytes32 confirmedConfigHash_, uint256 masterBlockTimestamp) {
         (confirmedConfigHash_, masterBlockTimestamp) = block.chainid == masterChainId
-            ? (UnsafeKeystoreStorageLib.sMaster().configHash, block.timestamp)
-            : (
-                UnsafeKeystoreStorageLib.sReplica().confirmedConfigHash,
-                UnsafeKeystoreStorageLib.sReplica().masterBlockTimestamp
-            );
+            ? (KeystoreStorageLib.sMaster().configHash, block.timestamp)
+            : (KeystoreStorageLib.sReplica().confirmedConfigHash, KeystoreStorageLib.sReplica().masterBlockTimestamp);
     }
 
     /// @notice Set a Keystore config on the master chain.
@@ -105,8 +102,8 @@ abstract contract Keystore {
         //      - On a replica chain, use `_sReplica()` for state and `_applyReplicaConfig` for update logic.
         (uint256 currentConfigNonce, function (ConfigLib.Config calldata) returns (bytes32) applyConfigInternal) = block
             .chainid == masterChainId
-            ? (UnsafeKeystoreStorageLib.sMaster().configNonce, _applyMasterConfig)
-            : (UnsafeKeystoreStorageLib.sReplica().currentConfigNonce, _applyReplicaConfig);
+            ? (KeystoreStorageLib.sMaster().configNonce, _applyMasterConfig)
+            : (KeystoreStorageLib.sReplica().currentConfigNonce, _applyReplicaConfig);
 
         // Ensure the nonce is strictly incrementing.
         require(
@@ -151,7 +148,7 @@ abstract contract Keystore {
             _extractConfigHashFromMasterChain(keystoreProof);
 
         // Ensure we are going forward when confirming a new config.
-        uint256 masterBlockTimestamp = UnsafeKeystoreStorageLib.sReplica().masterBlockTimestamp;
+        uint256 masterBlockTimestamp = KeystoreStorageLib.sReplica().masterBlockTimestamp;
         require(
             newMasterBlockTimestamp > masterBlockTimestamp,
             ConfirmedConfigOutdated({
@@ -176,8 +173,8 @@ abstract contract Keystore {
         // be committed by the master L2 state root published on L1), so simply acknowledge the new master block
         // timestamp and keep using the initial confirmed config hash (set in the `_initialize()` method).
         else {
-            UnsafeKeystoreStorageLib.sReplica().masterBlockTimestamp = newMasterBlockTimestamp;
-            newConfirmedConfigHash = UnsafeKeystoreStorageLib.sReplica().confirmedConfigHash;
+            KeystoreStorageLib.sReplica().masterBlockTimestamp = newMasterBlockTimestamp;
+            newConfirmedConfigHash = KeystoreStorageLib.sReplica().confirmedConfigHash;
         }
 
         emit KeystoreConfigConfirmed({configHash: newConfirmedConfigHash, masterBlockTimestamp: newMasterBlockTimestamp});
@@ -245,11 +242,11 @@ abstract contract Keystore {
     /// @return The hash of the current Keystore config.
     function _currentConfigHash() internal view returns (bytes32) {
         if (block.chainid == masterChainId) {
-            return UnsafeKeystoreStorageLib.sMaster().configHash;
+            return KeystoreStorageLib.sMaster().configHash;
         }
 
-        uint256 preconfirmedCount = UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes.length;
-        return UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes[preconfirmedCount - 1];
+        uint256 preconfirmedCount = KeystoreStorageLib.sReplica().preconfirmedConfigHashes.length;
+        return KeystoreStorageLib.sReplica().preconfirmedConfigHashes[preconfirmedCount - 1];
     }
 
     /// @notice Initializes the Keystore.
@@ -262,12 +259,12 @@ abstract contract Keystore {
         // Initialize the internal Keystore storage.
         bytes32 configHash = ConfigLib.hash({config: config, account: address(this)});
         if (block.chainid == masterChainId) {
-            require(UnsafeKeystoreStorageLib.sMaster().configHash == 0, KeystoreAlreadyInitialized());
-            UnsafeKeystoreStorageLib.sMaster().configHash = configHash;
+            require(KeystoreStorageLib.sMaster().configHash == 0, KeystoreAlreadyInitialized());
+            KeystoreStorageLib.sMaster().configHash = configHash;
         } else {
-            require(UnsafeKeystoreStorageLib.sReplica().confirmedConfigHash == 0, KeystoreAlreadyInitialized());
-            UnsafeKeystoreStorageLib.sReplica().confirmedConfigHash = configHash;
-            UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes.push(configHash);
+            require(KeystoreStorageLib.sReplica().confirmedConfigHash == 0, KeystoreAlreadyInitialized());
+            KeystoreStorageLib.sReplica().confirmedConfigHash = configHash;
+            KeystoreStorageLib.sReplica().preconfirmedConfigHashes.push(configHash);
         }
 
         // Call the new config hook.
@@ -291,8 +288,8 @@ abstract contract Keystore {
         });
 
         // Store the new confirmed config in the Keystore internal storage.
-        UnsafeKeystoreStorageLib.sReplica().confirmedConfigHash = newConfirmedConfigHash;
-        UnsafeKeystoreStorageLib.sReplica().masterBlockTimestamp = newMasterBlockTimestamp;
+        KeystoreStorageLib.sReplica().confirmedConfigHash = newConfirmedConfigHash;
+        KeystoreStorageLib.sReplica().masterBlockTimestamp = newMasterBlockTimestamp;
 
         // Run the apply config hook logic if the preconfirmed configs list was reset.
         if (wasPreconfirmedListReset) {
@@ -311,8 +308,8 @@ abstract contract Keystore {
     /// @return The new config hash.
     function _applyMasterConfig(ConfigLib.Config calldata newConfig) private returns (bytes32) {
         bytes32 newConfigHash = ConfigLib.hash({config: newConfig, account: address(this)});
-        UnsafeKeystoreStorageLib.sMaster().configHash = newConfigHash;
-        UnsafeKeystoreStorageLib.sMaster().configNonce = newConfig.nonce;
+        KeystoreStorageLib.sMaster().configHash = newConfigHash;
+        KeystoreStorageLib.sMaster().configNonce = newConfig.nonce;
 
         return newConfigHash;
     }
@@ -340,10 +337,10 @@ abstract contract Keystore {
         returns (bool wasPreconfirmedListReset)
     {
         // Get a storage reference to the Keystore preconfirmed configs list.
-        bytes32[] storage preconfirmedConfigHashes = UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes;
+        bytes32[] storage preconfirmedConfigHashes = KeystoreStorageLib.sReplica().preconfirmedConfigHashes;
 
         // If the new confirmed config has a nonce above our current config, reset the preconfirmed configs list.
-        uint256 currentConfigNonce = UnsafeKeystoreStorageLib.sReplica().currentConfigNonce;
+        uint256 currentConfigNonce = KeystoreStorageLib.sReplica().currentConfigNonce;
         if (newConfirmedConfigNonce > currentConfigNonce) {
             _resetPreconfirmedConfigs({
                 confirmedConfigHash_: newConfirmedConfigHash,
@@ -377,7 +374,7 @@ abstract contract Keystore {
     /// @param confirmedConfigHash_ The confirmed config hash to start form.
     /// @param confirmedConfigNonce The confirmed config nonce.
     function _resetPreconfirmedConfigs(bytes32 confirmedConfigHash_, uint256 confirmedConfigNonce) private {
-        delete UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes;
+        delete KeystoreStorageLib.sReplica().preconfirmedConfigHashes;
         _setPreconfirmedConfig({
             preconfirmedConfigHash: confirmedConfigHash_,
             preconfirmedConfigNonce: confirmedConfigNonce
@@ -389,7 +386,7 @@ abstract contract Keystore {
     /// @param preconfirmedConfigHash The preconfirmed config hash.
     /// @param preconfirmedConfigNonce The preconfirmed config nonce.
     function _setPreconfirmedConfig(bytes32 preconfirmedConfigHash, uint256 preconfirmedConfigNonce) private {
-        UnsafeKeystoreStorageLib.sReplica().preconfirmedConfigHashes.push(preconfirmedConfigHash);
-        UnsafeKeystoreStorageLib.sReplica().currentConfigNonce = preconfirmedConfigNonce;
+        KeystoreStorageLib.sReplica().preconfirmedConfigHashes.push(preconfirmedConfigHash);
+        KeystoreStorageLib.sReplica().currentConfigNonce = preconfirmedConfigNonce;
     }
 }

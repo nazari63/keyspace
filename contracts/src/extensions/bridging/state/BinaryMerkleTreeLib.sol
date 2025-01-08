@@ -27,7 +27,7 @@ library BinaryMerkleTreeLib {
     /// @param tree A storage pointer to a `Tree`.
     ///
     /// @return The Merkle tree's root.
-    function treeRoot(Tree storage tree) internal view returns (bytes32) {
+    function root(Tree storage tree) internal view returns (bytes32) {
         // Include the tree depth in the root.
         uint256 depth = tree.depth;
         return keccak256(abi.encodePacked(depth, tree.nodes[depth][0]));
@@ -67,13 +67,13 @@ library BinaryMerkleTreeLib {
 
     /// @notice Verifies if a `dataHash` belongs to the tree with the given `root`.
     ///
-    /// @param root The root of the tree.
+    /// @param root_ The root of the tree.
     /// @param dataHash The data hash to verify.
     /// @param index The index of the leaf node in the tree.
     /// @param siblings The sibling nodes' hashes required for verification.
     ///
     /// @return True if the data hash is part of the tree, otherwise false.
-    function isValid(bytes32 root, bytes32 dataHash, uint256 index, bytes32[] calldata siblings)
+    function isValid(bytes32 root_, bytes32 dataHash, uint256 index, bytes32[] calldata siblings)
         internal
         pure
         returns (bool)
@@ -95,7 +95,7 @@ library BinaryMerkleTreeLib {
         // Include the tree depth in the root.
         bytes32 recomputedRoot = keccak256(abi.encodePacked(depth, currentHash));
 
-        return recomputedRoot == root;
+        return recomputedRoot == root_;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////

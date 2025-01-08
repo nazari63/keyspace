@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-library UnsafeKeystoreStorageLib {
+library KeystoreStorageLib {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //                                           CONSTANTS                                            //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +57,9 @@ library UnsafeKeystoreStorageLib {
 
     /// @notice Helper function to get a storage reference to the `MasterKeystoreStorage` struct.
     ///
+    /// @dev This function is unsafe as it gives unlimited access to the `MasterKeystoreStorage` struct. It should be
+    ///      used with caution.
+    ///
     /// @return $ A storage reference to the `MasterKeystoreStorage` struct.
     function sMaster() internal pure returns (MasterKeystoreStorage storage $) {
         bytes32 position = MASTER_KEYSTORE_STORAGE_LOCATION;
@@ -66,6 +69,9 @@ library UnsafeKeystoreStorageLib {
     }
 
     /// @notice Helper function to get a storage reference to the `ReplicaKeystoreStorage` struct.
+    ///
+    /// @dev This function is unsafe as it gives unlimited access to the `ReplicaKeystoreStorage` struct. It should be
+    ///      used with caution.
     ///
     /// @return $ A storage reference to the `ReplicaKeystoreStorage` struct.
     function sReplica() internal pure returns (ReplicaKeystoreStorage storage $) {
