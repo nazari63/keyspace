@@ -5,7 +5,7 @@ import {AddressAliasHelper} from "optimism-contracts/vendor/AddressAliasHelper.s
 
 import {KeystoreBridgeStorageLib} from "../state/KeystoreBridgeStorageLib.sol";
 
-import {L1ToL2MsgSenderIsNotThisContract} from "./PortalErrors.sol";
+import {MsgSenderFromParentChainIsNotThisContract} from "./PortalErrors.sol";
 
 contract ReceiverAliasedAddress {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +18,9 @@ contract ReceiverAliasedAddress {
     /// @param root The root being received.
     function receiveFromAliasedAddress(uint256 originChainid, bytes32 root) external {
         // Ensure the `msg.sender` is the aliased address of this contract.
-        require(AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(this), L1ToL2MsgSenderIsNotThisContract());
+        require(
+            AddressAliasHelper.undoL1ToL2Alias(msg.sender) == address(this), MsgSenderFromParentChainIsNotThisContract()
+        );
 
         // Register the root.
         KeystoreBridgeStorageLib.sKeystoreBridge().receivedRoots[originChainid] = root;

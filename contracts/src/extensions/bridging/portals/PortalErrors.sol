@@ -7,5 +7,5 @@ error L2ToL1TxSenderIsNotRollupContract();
 /// @notice Thrown when the sender of a L2-to-L1 message is not this contract.
 error L2ToL1MsgSenderIsNotThisContract();
 
-/// @notice Thrown when the sender of a L1-to-L2 message is not this contract.
-error L1ToL2MsgSenderIsNotThisContract();
+/// @notice Thrown when the sender of a parent-to-child chainmessage is not this contract.
+error MsgSenderFromParentChainIsNotThisContract();
